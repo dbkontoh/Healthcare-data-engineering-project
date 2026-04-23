@@ -7,7 +7,7 @@
 #   pandas DataFrames we can work with in the rest of the pipeline.
 #
 # THE ANALOGY:
-#   Think of SQLQueryRunner as a hospital lab system.
+#   Think of SQLQueryRunner as a robust hospital lab system.
 #   You hand it a test request (a SQL query string).
 #   It sends that request to the PostgreSQL database.
 #   The database sends back rows of data (the results).
