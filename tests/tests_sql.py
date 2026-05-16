@@ -34,6 +34,15 @@
 #   healthcare.billing       → linked to appointments
 # ================================================================
 
+# ===========================================================================
+# UNDERSTAND: tests/tests_sql.py — prove extraction layer is correct
+# ---------------------------------------------------------------------------
+# Section 1: read extract_raw_data.sql as TEXT — no database required.
+# Section 2: SQLQueryRunner behavior (may hit DB if available).
+# Section 3: synthetic data shape matches real extract contract.
+# Section 4: save() writes CSV to pytest temp folder, not data/raw-data.csv.
+# ===========================================================================
+
 import sys, pathlib
 _root = pathlib.Path(__file__).resolve().parent.parent
 if str(_root) not in sys.path:
@@ -48,7 +57,9 @@ from src.data_extractor import DataExtractor
 #  SECTION 1 — SQL FILE TESTS                                         #
 #  All SQL for this project lives in one file: extract_raw_data.sql   #
 # ------------------------------------------------------------------ #
-
+# ---------------------------------------------------------------------------
+# SQL file contract tests — documentation enforced by code
+# ---------------------------------------------------------------------------
 SQL_FILE = "extract_raw_data.sql"   # single source of truth for all SQL
 
 
@@ -89,13 +100,15 @@ def test_sql_file_references_all_four_tables():
     print("  PASS: test_sql_file_references_all_four_tables")
 
 
-def test_sql_file_contains_industry_placeholder():
-    """extract_raw_data.sql must use the {industry} placeholder."""
+def test_sql_file_uses_healthcare_schema_prefix():
+    """extract_raw_data.sql must qualify tables with healthcare. (DBeaver/Postgres style)."""
     from config import SQL_DIR
     content = (SQL_DIR / SQL_FILE).read_text(encoding="utf-8")
-    assert "{industry}" in content, \
-        f"{SQL_FILE} must use {{industry}} placeholder for multi-schema support"
-    print("  PASS: test_sql_file_contains_industry_placeholder")
+    assert "healthcare." in content, \
+        f"{SQL_FILE} must use schema-qualified names like healthcare.patients"
+    assert "{industry}" not in content, \
+        f"{SQL_FILE} should use healthcare., not {{industry}} placeholders"
+    print("  PASS: test_sql_file_uses_healthcare_schema_prefix")
 
 
 def test_sql_file_contains_billing_columns():
@@ -129,6 +142,9 @@ def test_sql_file_contains_all_five_sections():
 # ------------------------------------------------------------------ #
 #  SECTION 2 — SQLQueryRunner TESTS                                   #
 # ------------------------------------------------------------------ #
+# ---------------------------------------------------------------------------
+# SQLQueryRunner tests — class must never crash callers on bad SQL
+# ---------------------------------------------------------------------------
 
 def test_query_runner_returns_dataframe():
     """SQLQueryRunner.run() must always return a DataFrame — never raises."""
@@ -199,6 +215,9 @@ def test_query_runner_industry_substitution():
 # ------------------------------------------------------------------ #
 #  SECTION 3 — DataExtractor SYNTHETIC DATA TESTS                     #
 # ------------------------------------------------------------------ #
+# ---------------------------------------------------------------------------
+# Synthetic data tests — offline fallback must match production column list
+# ---------------------------------------------------------------------------
 
 def test_extractor_synthetic_data_has_required_columns():
     """Synthetic fallback data must contain all 30 required healthcare columns."""
@@ -339,6 +358,10 @@ def test_extractor_synthetic_data_valid_blood_types():
 # ------------------------------------------------------------------ #
 #  SECTION 4 — DataExtractor SAVE TESTS                               #
 # ------------------------------------------------------------------ #
+# ---------------------------------------------------------------------------
+# Save tests: cfg.RAW_DATA_PATH is pointed at a temp file so your real
+# data/raw-data.csv is never touched when pytest runs.
+# ---------------------------------------------------------------------------
 
 def test_extractor_save_creates_csv(tmp_path):
     """DataExtractor.save() must create a valid raw-data.csv at RAW_DATA_PATH."""
@@ -441,7 +464,7 @@ if __name__ == "__main__":
     test_sql_file_contains_select_keyword()
     test_sql_file_references_healthcare_schema()
     test_sql_file_references_all_four_tables()
-    test_sql_file_contains_industry_placeholder()
+    test_sql_file_uses_healthcare_schema_prefix()
     test_sql_file_contains_billing_columns()
     test_sql_file_contains_all_five_sections()
 

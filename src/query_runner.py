@@ -34,6 +34,17 @@
 #   healthcare.billing       — billing records linked to appointments
 # ================================================================
 
+# ===========================================================================
+# UNDERSTAND: query_runner.py — execute SQL and get pandas tables back
+# ---------------------------------------------------------------------------
+# Postgres stores normalized tables (patients, appointments, ...).
+# Python analytics wants pandas DataFrames (like Excel sheets in RAM).
+# SQLQueryRunner is the adapter between those two worlds.
+#
+# Two entry points:
+#   run(sql_string)     → ad-hoc SQL (demos build strings in Python)
+#   run_file("x.sql")   → read file from sql/ folder and execute it
+# ===========================================================================
 import sys, pathlib, time
 
 _root = pathlib.Path(__file__).resolve().parent
@@ -60,6 +71,12 @@ class SQLQueryRunner:
     history    list[dict]    audit log of every query run this session
     """
 
+    # =========================================================================
+    # UNDERSTAND: __init__ — prepare runner state (no SQL executed yet)
+    # -------------------------------------------------------------------------
+    # self.industry copied from config — used in f-strings for demo queries
+    # self.history starts empty — each run() appends one dict (audit trail)
+    # =========================================================================
     def __init__(self):
         self.industry = INDUSTRY          # 'healthcare' — set in config.py
         self.history  = []                # audit log: grows with every run() call
@@ -69,6 +86,20 @@ class SQLQueryRunner:
     #  CORE METHODS                                                        #
     # ------------------------------------------------------------------ #
 
+    # =========================================================================
+    # UNDERSTAND: run() — send SQL to Postgres, get a DataFrame back
+    # -------------------------------------------------------------------------
+    # Step-by-step:
+    #   1. If DB_AVAILABLE is False → return empty DataFrame (no exception).
+    #   2. Replace {industry} in the string with "healthcare" (for demo SQL only).
+    #   3. pd.read_sql(sql, engine) runs the query; Postgres returns rows.
+    #   4. pandas converts rows+columns into a DataFrame.
+    #   5. Append metadata to self.history (audit trail for debugging).
+    #   6. On any exception → log error, return empty DataFrame (pipeline survives).
+    #
+    # params optional: bind variables like WHERE status = :status with
+    # params={"status": "Completed"} — prevents SQL injection vs f-strings.
+    # =========================================================================
     def run(self, sql: str, params: dict = None) -> pd.DataFrame:
         """
         Execute a SQL query string and return results as a DataFrame.
@@ -128,6 +159,14 @@ class SQLQueryRunner:
             logger.error(f"[SQL] Query failed: {e}")
             return pd.DataFrame()   # safe empty return — callers check len(df) == 0
 
+    # =========================================================================
+    # UNDERSTAND: run_file() — production extract path
+    # -------------------------------------------------------------------------
+    # Reads sql/extract_raw_data.sql from disk as ONE big string.
+    # That file contains Sections 1–5 (many SELECT statements).
+    # PostgreSQL + pandas return the result set of the LAST query in the file
+    # (Section 5 — the 4-table join). Sections 1–4 are for human/DBeaver practice.
+    # =========================================================================
     def run_file(self, filename: str) -> pd.DataFrame:
         """
         Load a .sql file from the sql/ directory and execute it.
@@ -157,7 +196,23 @@ class SQLQueryRunner:
     # ------------------------------------------------------------------ #
     #  DEMO METHODS — live teaching queries for the healthcare schema      #
     # ------------------------------------------------------------------ #
+    # =========================================================================
+    # UNDERSTAND: demo_* methods — terminal SQL showcase (Part 1 of run.py)
+    # -------------------------------------------------------------------------
+    # Each demo builds a list of (title, sql) pairs, loops them, calls self.run(sql),
+    # prints df.to_string(). SQL uses f"{self.industry}.table" → healthcare.table.
+    # Your on-disk extract_raw_data.sql uses healthcare. directly — both are valid.
+    # =========================================================================
 
+    # =========================================================================
+    # UNDERSTAND: demo_basics — loops (title, sql) pairs and prints each result
+    # -------------------------------------------------------------------------
+    # Pattern inside every demo_* method:
+    #   demos = [(human title, SQL string), ...]
+    #   for title, sql in demos:
+    #       df = self.run(sql)      # hit Postgres
+    #       print(df.to_string())   # show table in terminal
+    # =========================================================================
     def demo_basics(self) -> None:
         """
         Run selected demonstration queries showcasing basic SQL concepts
@@ -215,6 +270,9 @@ class SQLQueryRunner:
             if not df.empty:
                 print(df.to_string(index=False))
 
+    # -------------------------------------------------------------------------
+    # demo_aggregation: GROUP BY payment_status, visit_type, city — fewer rows out
+    # -------------------------------------------------------------------------
     def demo_aggregation(self) -> None:
         """
         Run demonstration aggregation queries against the healthcare schema.
@@ -272,6 +330,9 @@ class SQLQueryRunner:
             if not df.empty:
                 print(df.to_string(index=False))
 
+    # -------------------------------------------------------------------------
+    # demo_joins: revenue by doctor, unpaid patients, 4-table sample rows
+    # -------------------------------------------------------------------------
     def demo_joins(self) -> None:
         """
         Run demonstration join queries against the healthcare schema.
@@ -343,6 +404,9 @@ class SQLQueryRunner:
             if not df.empty:
                 print(df.to_string(index=False))
 
+    # -------------------------------------------------------------------------
+    # demo_window_functions: RANK spenders, RANK doctors within specialty, LAG revenue
+    # -------------------------------------------------------------------------
     def demo_window_functions(self) -> None:
         """
         Run demonstration CTE and window function queries.

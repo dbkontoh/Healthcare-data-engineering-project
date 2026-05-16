@@ -2,6 +2,10 @@ __pycache__/
 *.pyc
 .env
 gt-sql-env/
+gt-p1sql-env/
 venv/
 data/*.csv
+data/processed/*.csv
+data/processed/*.txt
 .DS_Store
+.pytest_cache/
